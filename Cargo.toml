@@ -1,0 +1,10 @@
+[package]
+name = "escl"
+version = "0.1.0"
+authors = ["Jonathan LEI <me@xjonathan.dev>"]
+edition = "2021"
+readme = "README.md"
+repository = "https://github.com/xJonathanLEI/escl-rs"
+description = "A Rust library for using scanners via the eSCL protocol (scanning over network)"
+
+[dependencies]
