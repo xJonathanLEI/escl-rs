@@ -24,6 +24,17 @@ pub enum Error {
 }
 
 impl Scanner {
+    /// Creates a new [Scanner] instance by supplying a base URL. Note that the base URL must
+    /// include the `eSCL` segment if it exists.
+    ///
+    /// For example, if the full scanner status URL is `http://192.168.1.1/eSCL/ScannerStatus`,
+    /// then the `base_url` value should be `http://192.168.1.1/eSCL`.
+    ///
+    /// ```
+    /// use escl::{Scanner, Url};
+    ///
+    /// let scanner = Scanner::new(Url::parse("http://192.168.1.1/eSCL").unwrap());
+    /// ```
     pub fn new(base_url: Url) -> Self {
         Self {
             base_url,
@@ -32,12 +43,12 @@ impl Scanner {
     }
 
     pub async fn capabilities(&self) -> Result<ScannerCapabilities, Error> {
-        self.send_get_request(self.extended_url(&["eSCL", "ScannerCapabilities"]))
+        self.send_get_request(self.extended_url(&["ScannerCapabilities"]))
             .await
     }
 
     pub async fn status(&self) -> Result<ScannerStatus, Error> {
-        self.send_get_request(self.extended_url(&["eSCL", "ScannerStatus"]))
+        self.send_get_request(self.extended_url(&["ScannerStatus"]))
             .await
     }
 
