@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{de::Visitor, Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -77,13 +77,13 @@ pub struct SettingProfile {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct ColorModes {
-    pub color_mode: Vec<String>,
+    pub color_mode: Vec<ColorMode>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct ContentTypes {
-    pub content_type: Vec<String>,
+    pub content_type: Vec<ContentType>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -127,7 +127,7 @@ pub struct CcdChannels {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct SupportedIntents {
-    pub intent: Vec<String>,
+    pub intent: Vec<ScanIntent>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -152,4 +152,152 @@ pub struct SharpenSupport {
     pub max: u32,
     pub normal: u32,
     pub step: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ColorMode {
+    /// Binary monochrome scanning. Valid only for certain DocumentFormat/DocumentFormatExt values –
+    /// like 'application/octet-stream', 'image/tiff' that can support single-bit scans. For
+    /// document format not supporting BlackAndWhite1 color mode, scanner SHOULD report a 409
+    /// Conflict error.
+    BlackAndWhite1,
+    /// 8-bit grayscale
+    Grayscale8,
+    /// 16-bit grayscale
+    Grayscale16,
+    /// 8-bit per channel RGB
+    RGB24,
+    /// 16-bit per channel RGB
+    RGB48,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContentType {
+    Photo,
+    Text,
+    TextAndPhoto,
+    LineArt,
+    Magazine,
+    Halftone,
+    Auto,
+    Custom(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScanIntent {
+    /// Scanning optimized for text.
+    Document,
+    /// A composite document with mixed text/graphic/photo content.
+    TextAndGraphic,
+    /// Scanning optimized for photo
+    Photo,
+    /// Scanning optimized for performance (fast output)
+    Preview,
+    /// Scanning optimized for 3 dimensional objects - objects with depth
+    Object,
+    /// Scanning optimized for a business card
+    BusinessCard,
+    Custom(String),
+}
+
+struct ContentTypeVisitor;
+struct ScanIntentVisitor;
+
+impl Serialize for ContentType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(match self {
+            Self::Photo => "Photo",
+            Self::Text => "Text",
+            Self::TextAndPhoto => "TextAndPhoto",
+            Self::LineArt => "LineArt",
+            Self::Magazine => "Magazine",
+            Self::Halftone => "Halftone",
+            Self::Auto => "Auto",
+            Self::Custom(custom) => custom,
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for ContentType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(ContentTypeVisitor)
+    }
+}
+
+impl<'de> Visitor<'de> for ContentTypeVisitor {
+    type Value = ContentType;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "string")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(match v {
+            "Photo" => ContentType::Photo,
+            "Text" => ContentType::Text,
+            "TextAndPhoto" => ContentType::TextAndPhoto,
+            "LineArt" => ContentType::LineArt,
+            "Magazine" => ContentType::Magazine,
+            "Halftone" => ContentType::Halftone,
+            "Auto" => ContentType::Auto,
+            custom => ContentType::Custom(custom.to_owned()),
+        })
+    }
+}
+impl Serialize for ScanIntent {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(match self {
+            Self::Document => "Document",
+            Self::TextAndGraphic => "TextAndGraphic",
+            Self::Photo => "Photo",
+            Self::Preview => "Preview",
+            Self::Object => "Object",
+            Self::BusinessCard => "BusinessCard",
+            Self::Custom(custom) => custom,
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for ScanIntent {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(ScanIntentVisitor)
+    }
+}
+
+impl<'de> Visitor<'de> for ScanIntentVisitor {
+    type Value = ScanIntent;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "string")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(match v {
+            "Document" => ScanIntent::Document,
+            "TextAndGraphic" => ScanIntent::TextAndGraphic,
+            "Photo" => ScanIntent::Photo,
+            "Preview" => ScanIntent::Preview,
+            "Object" => ScanIntent::Object,
+            "BusinessCard" => ScanIntent::BusinessCard,
+            custom => ScanIntent::Custom(custom.to_owned()),
+        })
+    }
 }
