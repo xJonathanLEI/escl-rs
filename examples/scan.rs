@@ -1,18 +1,27 @@
-use std::io::Write;
+use std::{io::Write, time::Duration};
 
 use escl::{
+    discover,
     settings::{ContentRegionUnits, InputSource, ScanRegion, ScanRegions},
-    Scanner, Url,
+    Scanner,
 };
 
 #[tokio::main]
 async fn main() {
-    let scanner_ip =
-        std::env::var("SCANNER_IP").expect("scanner IP not available from env var SCANNER_IP");
+    println!("Looking for scanners in LAN...");
 
-    let scanner = Scanner::new(
-        Url::parse(&format!("http://{}/eSCL", scanner_ip)).expect("invalid scanner URL"),
+    let scanner_services = discover(Duration::from_secs(5))
+        .await
+        .expect("error discovering scanner services");
+
+    let chosen_service = scanner_services.first().expect("no scanner found in LAN");
+    println!(
+        "Scanner chosen: {} ({})",
+        chosen_service.name(),
+        chosen_service.url()
     );
+
+    let scanner: Scanner = chosen_service.into();
 
     let capabilities = scanner
         .capabilities()

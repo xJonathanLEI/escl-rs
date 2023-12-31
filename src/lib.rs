@@ -1,7 +1,8 @@
-use std::fmt::Display;
+use std::{fmt::Display, time::Duration};
 
+use futures_util::{pin_mut, stream::StreamExt};
+use mdns::RecordKind;
 use reqwest::{Client, StatusCode};
-
 use serde::de::DeserializeOwned;
 pub use url::Url;
 
@@ -13,6 +14,8 @@ use status::ScannerStatus;
 
 pub mod settings;
 use settings::ScanSettings;
+
+const SERVICE_NAME: &str = "_uscan._tcp.local";
 
 #[derive(Debug)]
 pub struct Scanner {
@@ -32,6 +35,17 @@ pub enum Error {
 pub struct ScanJob {
     job_url: Url,
     http_client: Client,
+}
+
+#[derive(Debug)]
+pub struct ScannerService {
+    base_url: Url,
+    name: String,
+}
+
+#[derive(Debug)]
+pub enum DiscoverError {
+    Mdns(mdns::Error),
 }
 
 impl Scanner {
@@ -170,4 +184,147 @@ impl ScanJob {
     pub fn job_url(&self) -> &Url {
         &self.job_url
     }
+}
+
+impl ScannerService {
+    /// Base URL that can be used to initialize a [Scanner] instance
+    pub fn url(&self) -> &Url {
+        &self.base_url
+    }
+
+    /// Human readable scanner make and model
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+impl From<&ScannerService> for Scanner {
+    fn from(value: &ScannerService) -> Self {
+        Self {
+            base_url: value.base_url.clone(),
+            http_client: Client::new(),
+        }
+    }
+}
+
+impl From<ScannerService> for Scanner {
+    fn from(value: ScannerService) -> Self {
+        Self {
+            base_url: value.base_url,
+            http_client: Client::new(),
+        }
+    }
+}
+
+impl Display for DiscoverError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Mdns(err) => write!(f, "mDNS error: {}", err),
+        }
+    }
+}
+
+impl std::error::Error for DiscoverError {}
+
+/// Looks for eSCL-enabled scanner devices in LAN. Up to a set timeout.
+pub async fn discover(timeout: Duration) -> Result<Vec<ScannerService>, DiscoverError> {
+    let mdns_stream = mdns::discover::all(SERVICE_NAME, timeout)
+        .map_err(DiscoverError::Mdns)?
+        .listen();
+    pin_mut!(mdns_stream);
+
+    let services = match mdns_stream.next().await {
+        Some(Ok(response)) => {
+            response
+                .records()
+                .filter_map(|record| {
+                    if record.name == SERVICE_NAME {
+                        match &record.kind {
+                            RecordKind::PTR(ptr_record) => {
+                                // Each PTR record on the service name represents one scanner
+
+                                // There must be one TXT record with metadata
+                                let txt_record = response.records().find_map(|record| {
+                                    if &record.name == ptr_record {
+                                        match &record.kind {
+                                            RecordKind::TXT(txt) => Some(txt),
+                                            _ => None,
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                })?;
+
+                                // Extracts URL prefix
+                                let rs = txt_record.iter().find_map(|item| {
+                                    let (key, value) = item.split_once('=')?;
+
+                                    if key == "rs" {
+                                        Some(value)
+                                    } else {
+                                        None
+                                    }
+                                })?;
+
+                                // Extracts human readable name
+                                let ty = txt_record.iter().find_map(|item| {
+                                    let (key, value) = item.split_once('=')?;
+
+                                    if key == "ty" {
+                                        Some(value)
+                                    } else {
+                                        None
+                                    }
+                                })?;
+
+                                // There must be one SRV record pointing to the address
+                                let (srv_record, port) = response.records().find_map(|record| {
+                                    if &record.name == ptr_record {
+                                        match &record.kind {
+                                            RecordKind::SRV { target, port, .. } => {
+                                                Some((target, port))
+                                            }
+                                            _ => None,
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                })?;
+
+                                // There should be one A record with IP address
+                                let ip_addr = response.records().find_map(|record| {
+                                    if &record.name == srv_record {
+                                        match &record.kind {
+                                            RecordKind::A(ip_addr) => Some(ip_addr),
+                                            _ => None,
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                })?;
+
+                                let url =
+                                    Url::parse(&format!("http://{}:{}/{}", ip_addr, port, rs))
+                                        .ok()?;
+
+                                Some(ScannerService {
+                                    base_url: url,
+                                    name: ty.to_owned(),
+                                })
+                            }
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+        }
+        Some(Err(err)) => return Err(DiscoverError::Mdns(err)),
+        _ => {
+            vec![]
+        }
+    };
+
+    Ok(services)
 }

@@ -8,31 +8,24 @@
 
 ## Features
 
+- [x] LAN service discovery
 - [x] Scanner capabilities
 - [x] Scanner status
 - [x] Scan via the _Pull Scan_ model
 
 ## Example
 
-Set your scanner IP address in the `SCANNER_IP` environment variable. For example:
+The [example](./examples/scan.rs) uses multicast DNS to look for scanners in LAN for 5 seconds, and scans using the first discovered scanner. There's no need to pre-configure scanner IP address.
 
-```console
-export SCANNER_IP="192.168.1.100"
-```
-
-> [!NOTE]
->
-> This example assumes that your scanner serves eSCL endpoints at `http://scanner.ip.address/eCSL/xxxx`.
->
-> `escl-rs` supports any scanner URLs, including HTTPS. The use of LAN IP here is just for simplicity of the example.
-
-Then run the `scan` example:
+The output image is saved as `scan.jpg` in the current directory. To run the example:
 
 ```console
 cargo run --example scan
 ```
 
-An output image file `scan.jpg` will be saved in the current directory.
+> [!NOTE]
+>
+> `escl-rs` supports any scanner URLs, including HTTPS. The use of LAN here is just for simplicity of the example, and to demonstrate LAN discovery capabilities.
 
 ## License
 
