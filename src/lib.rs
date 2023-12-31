@@ -3,7 +3,6 @@ use std::fmt::Display;
 use reqwest::{Client, StatusCode};
 
 use serde::de::DeserializeOwned;
-use settings::ScanSettings;
 pub use url::Url;
 
 pub mod capabilities;
@@ -13,6 +12,7 @@ pub mod status;
 use status::ScannerStatus;
 
 pub mod settings;
+use settings::ScanSettings;
 
 #[derive(Debug)]
 pub struct Scanner {
@@ -26,6 +26,12 @@ pub enum Error {
     Xml(serde_xml_rs::Error),
     UnexpectedStatusCode(StatusCode),
     LocationHeader,
+}
+
+#[derive(Debug)]
+pub struct ScanJob {
+    job_url: Url,
+    http_client: Client,
 }
 
 impl Scanner {
@@ -57,7 +63,7 @@ impl Scanner {
             .await
     }
 
-    pub async fn scan(&self, settings: &ScanSettings) -> Result<Url, Error> {
+    pub async fn scan(&self, settings: &ScanSettings) -> Result<ScanJob, Error> {
         let url = self.extended_url(&["ScanJobs"]);
 
         let request_body = serde_xml_rs::to_string(settings).map_err(Error::Xml)?;
@@ -76,14 +82,19 @@ impl Scanner {
             return Err(Error::UnexpectedStatusCode(status_code));
         }
 
-        response
+        let location: Url = response
             .headers()
             .get("location")
             .ok_or(Error::LocationHeader)?
             .to_str()
             .map_err(|_| Error::LocationHeader)?
             .parse()
-            .map_err(|_| Error::LocationHeader)
+            .map_err(|_| Error::LocationHeader)?;
+
+        Ok(ScanJob {
+            job_url: location,
+            http_client: self.http_client.clone(),
+        })
     }
 
     fn extended_url(&self, segments: &[&'static str]) -> Url {
@@ -124,3 +135,39 @@ impl Display for Error {
 }
 
 impl std::error::Error for Error {}
+
+impl ScanJob {
+    pub async fn next_document(&self) -> Result<Option<Vec<u8>>, Error> {
+        let url = self.extended_url(&["NextDocument"]);
+
+        let response = self
+            .http_client
+            .get(url)
+            .send()
+            .await
+            .map_err(Error::Http)?;
+
+        let status_code = response.status();
+        if status_code == StatusCode::NOT_FOUND {
+            return Ok(None);
+        } else if status_code != StatusCode::OK {
+            return Err(Error::UnexpectedStatusCode(status_code));
+        }
+
+        let bytes = response.bytes().await.map_err(Error::Http)?;
+        Ok(Some(bytes.to_vec()))
+    }
+
+    fn extended_url(&self, segments: &[&'static str]) -> Url {
+        let mut url = self.job_url.clone();
+        url.path_segments_mut()
+            .expect("Invalid base URL")
+            .extend(segments);
+
+        url
+    }
+
+    pub fn job_url(&self) -> &Url {
+        &self.job_url
+    }
+}
