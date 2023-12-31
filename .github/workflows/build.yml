@@ -1,0 +1,34 @@
+on:
+  push:
+    branches:
+      - "master"
+  pull_request:
+
+name: "Build package"
+
+jobs:
+  build:
+    name: "Build for ${{ matrix.os }}"
+    runs-on: "${{ matrix.os }}"
+
+    strategy:
+      matrix:
+        os:
+          - "ubuntu-latest"
+          - "windows-latest"
+          - "macos-latest"
+
+    steps:
+      - name: "Checkout source code"
+        uses: "actions/checkout@v3"
+
+      - name: "Setup stable toolchain"
+        uses: "actions-rs/toolchain@v1"
+        with:
+          toolchain: "stable"
+          profile: "minimal"
+          override: true
+
+      - name: "Build crate"
+        run: |
+          cargo build --all --all-targets
