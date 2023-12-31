@@ -1,8 +1,9 @@
 use std::fmt::Display;
 
-use reqwest::Client;
+use reqwest::{Client, StatusCode};
 
 use serde::de::DeserializeOwned;
+use settings::ScanSettings;
 pub use url::Url;
 
 pub mod capabilities;
@@ -10,6 +11,8 @@ use capabilities::ScannerCapabilities;
 
 pub mod status;
 use status::ScannerStatus;
+
+pub mod settings;
 
 #[derive(Debug)]
 pub struct Scanner {
@@ -21,6 +24,8 @@ pub struct Scanner {
 pub enum Error {
     Http(reqwest::Error),
     Xml(serde_xml_rs::Error),
+    UnexpectedStatusCode(StatusCode),
+    LocationHeader,
 }
 
 impl Scanner {
@@ -50,6 +55,35 @@ impl Scanner {
     pub async fn status(&self) -> Result<ScannerStatus, Error> {
         self.send_get_request(self.extended_url(&["ScannerStatus"]))
             .await
+    }
+
+    pub async fn scan(&self, settings: &ScanSettings) -> Result<Url, Error> {
+        let url = self.extended_url(&["ScanJobs"]);
+
+        let request_body = serde_xml_rs::to_string(settings).map_err(Error::Xml)?;
+
+        let response = self
+            .http_client
+            .post(url)
+            .header("Content-Type", "text/xml")
+            .body(request_body)
+            .send()
+            .await
+            .map_err(Error::Http)?;
+
+        let status_code = response.status();
+        if status_code != StatusCode::CREATED {
+            return Err(Error::UnexpectedStatusCode(status_code));
+        }
+
+        response
+            .headers()
+            .get("location")
+            .ok_or(Error::LocationHeader)?
+            .to_str()
+            .map_err(|_| Error::LocationHeader)?
+            .parse()
+            .map_err(|_| Error::LocationHeader)
     }
 
     fn extended_url(&self, segments: &[&'static str]) -> Url {
@@ -83,6 +117,8 @@ impl Display for Error {
         match self {
             Error::Http(err) => write!(f, "http error: {}", err),
             Error::Xml(err) => write!(f, "xml error: {}", err),
+            Error::UnexpectedStatusCode(code) => write!(f, "unexpected http status code {}", code),
+            Error::LocationHeader => write!(f, "missing or invalid `Location` header in response"),
         }
     }
 }

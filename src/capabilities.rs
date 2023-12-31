@@ -154,9 +154,9 @@ pub struct SharpenSupport {
     pub step: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ColorMode {
-    /// Binary monochrome scanning. Valid only for certain DocumentFormat/DocumentFormatExt values –
+    /// Binary monochrome scanning. Valid only for certain DocumentFormat/DocumentFormatExt values -
     /// like 'application/octet-stream', 'image/tiff' that can support single-bit scans. For
     /// document format not supporting BlackAndWhite1 color mode, scanner SHOULD report a 409
     /// Conflict error.
@@ -200,8 +200,60 @@ pub enum ScanIntent {
     Custom(String),
 }
 
+struct ColorModeVisitor;
 struct ContentTypeVisitor;
 struct ScanIntentVisitor;
+
+impl Serialize for ColorMode {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(match self {
+            Self::BlackAndWhite1 => "BlackAndWhite1",
+            Self::Grayscale8 => "Grayscale8",
+            Self::Grayscale16 => "Grayscale16",
+            Self::RGB24 => "RGB24",
+            Self::RGB48 => "RGB48",
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for ColorMode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(ColorModeVisitor)
+    }
+}
+
+impl<'de> Visitor<'de> for ColorModeVisitor {
+    type Value = ColorMode;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "string")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(match v {
+            "BlackAndWhite1" => ColorMode::BlackAndWhite1,
+            "Grayscale8" => ColorMode::Grayscale8,
+            "Grayscale16" => ColorMode::Grayscale16,
+            "RGB24" => ColorMode::RGB24,
+            "RGB48" => ColorMode::RGB48,
+            _ => {
+                return Err(serde::de::Error::invalid_value(
+                    serde::de::Unexpected::Str(v),
+                    &"valid ColorMode value",
+                ))
+            }
+        })
+    }
+}
 
 impl Serialize for ContentType {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -253,6 +305,7 @@ impl<'de> Visitor<'de> for ContentTypeVisitor {
         })
     }
 }
+
 impl Serialize for ScanIntent {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

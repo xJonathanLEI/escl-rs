@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 pub struct ScannerStatus {
     pub version: String,
     pub state: ScannerState,
+    #[serde(default, skip_serializing_if = "Jobs::is_empty")]
     pub jobs: Jobs,
 }
 
@@ -23,7 +24,7 @@ pub enum ScannerState {
     Down,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Jobs {
     pub job_info: Vec<JobInfo>,
@@ -44,11 +45,11 @@ pub struct JobInfo {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum JobState {
-    /// End state – indicates that the job was canceled either by the remote client application
+    /// End state - indicates that the job was canceled either by the remote client application
     /// (thru the eSCL interface) or by the user interacting with the scanner directly. Check
     /// [JobStateReasons] for more details.
     Canceled,
-    /// End state – either an internal device error, or a communication error or a security error
+    /// End state - either an internal device error, or a communication error or a security error
     Aborted,
     /// Job is finished successfully
     Completed,
@@ -62,4 +63,10 @@ pub enum JobState {
 #[serde(rename_all = "PascalCase")]
 pub struct JobStateReasons {
     pub job_state_reason: String,
+}
+
+impl Jobs {
+    fn is_empty(&self) -> bool {
+        self.job_info.is_empty()
+    }
 }
