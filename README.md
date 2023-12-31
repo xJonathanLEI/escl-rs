@@ -2,7 +2,7 @@
   <h1 align="center">escl-rs</h1>
 </p>
 
-**A Rust library for using scanners via the [eSCL protocol](https://mopria.org/spec-download) (scanning over network)**
+**A Rust library for discovering and using scanners via the [eSCL protocol](https://mopria.org/spec-download) (scanning over network)**
 
 [![crates-badge](https://img.shields.io/crates/v/escl.svg)](https://crates.io/crates/escl)
 
