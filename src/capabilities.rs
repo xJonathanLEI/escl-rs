@@ -204,6 +204,20 @@ struct ColorModeVisitor;
 struct ContentTypeVisitor;
 struct ScanIntentVisitor;
 
+impl ColorModes {
+    /// Gets the highest support quality RGB color mode. If no RGB color mode is supported, `None`
+    // is returned.
+    pub fn color(&self) -> Option<ColorMode> {
+        if self.color_mode.contains(&ColorMode::RGB48) {
+            Some(ColorMode::RGB48)
+        } else if self.color_mode.contains(&ColorMode::RGB24) {
+            Some(ColorMode::RGB24)
+        } else {
+            None
+        }
+    }
+}
+
 impl Serialize for ColorMode {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

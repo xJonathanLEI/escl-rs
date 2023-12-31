@@ -1,6 +1,9 @@
 use std::io::Write;
 
-use escl::{Scanner, Url};
+use escl::{
+    settings::{ContentRegionUnits, InputSource, ScanRegion, ScanRegions},
+    Scanner, Url,
+};
 
 #[tokio::main]
 async fn main() {
@@ -21,10 +24,24 @@ async fn main() {
         .scan(&escl::settings::ScanSettings {
             version: capabilities.version,
             intent: None,
-            scan_regions: None,
-            input_source: None,
-            color_mode: None,
-            blank_page_detection: None,
+            scan_regions: Some(ScanRegions {
+                scan_region: ScanRegion {
+                    height: capabilities.platen.platen_input_caps.max_height,
+                    content_region_units: ContentRegionUnits::ThreeHundredthsOfInches,
+                    width: capabilities.platen.platen_input_caps.max_width,
+                    x_offset: 0,
+                    y_offset: 0,
+                },
+            }),
+            input_source: Some(InputSource::Platen),
+            color_mode: capabilities
+                .platen
+                .platen_input_caps
+                .setting_profiles
+                .setting_profile
+                .color_modes
+                .color(),
+            blank_page_detection: Some(false),
         })
         .await
         .expect("unable to submit scan job");
