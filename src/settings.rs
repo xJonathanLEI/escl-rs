@@ -50,6 +50,12 @@ pub struct ScanSettings {
     )]
     pub color_mode: Option<ColorMode>,
     #[serde(
+        rename = "scan:CompressionFactor",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub compression_factor: Option<u32>,
+    #[serde(
         rename = "scan:BlankPageDetection",
         default,
         skip_serializing_if = "Option::is_none"

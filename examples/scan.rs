@@ -44,6 +44,7 @@ async fn main() {
                 .setting_profile
                 .color_modes
                 .color(),
+            compression_factor: None,
             blank_page_detection: Some(false),
         })
         .await
