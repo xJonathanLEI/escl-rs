@@ -33,6 +33,9 @@ async fn main() {
                     y_offset: 0,
                 },
             }),
+            document_format_ext: Some("image/jpeg".to_owned()),
+            x_resolution: None,
+            y_resolution: None,
             input_source: Some(InputSource::Platen),
             color_mode: capabilities
                 .platen

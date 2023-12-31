@@ -20,11 +20,29 @@ pub struct ScanSettings {
     )]
     pub scan_regions: Option<ScanRegions>,
     #[serde(
+        rename = "scan:DocumentFormatExt",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub document_format_ext: Option<String>,
+    #[serde(
         rename = "pwg:InputSource",
         default,
         skip_serializing_if = "Option::is_none"
     )]
     pub input_source: Option<InputSource>,
+    #[serde(
+        rename = "scan:XResolution",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub x_resolution: Option<u32>,
+    #[serde(
+        rename = "scan:YResolution",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub y_resolution: Option<u32>,
     #[serde(
         rename = "scan:ColorMode",
         default,
