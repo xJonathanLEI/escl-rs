@@ -5,7 +5,8 @@ use serde::{de::Visitor, Deserialize, Serialize};
 pub struct ScannerCapabilities {
     pub version: String,
     pub make_and_model: String,
-    pub manufacturer: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manufacturer: Option<String>,
     pub serial_number: String,
     #[serde(rename = "UUID")]
     pub uuid: String,
@@ -13,17 +14,21 @@ pub struct ScannerCapabilities {
     pub admin_uri: String,
     #[serde(rename = "IconURI")]
     pub icon_uri: String,
+    #[serde(default, skip_serializing_if = "Certifications::is_empty")]
     pub certifications: Certifications,
     pub platen: Platen,
-    pub compression_factor_support: CompressionFactorSupport,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compression_factor_support: Option<CompressionFactorSupport>,
+    #[serde(default, skip_serializing_if = "SupportedMediaTypes::is_empty")]
     pub supported_media_types: SupportedMediaTypes,
-    pub sharpen_support: SharpenSupport,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sharpen_support: Option<SharpenSupport>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Certifications {
-    pub certification: Certification,
+    pub certification: Vec<Certification>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,6 +72,7 @@ pub struct SettingProfiles {
 #[serde(rename_all = "PascalCase")]
 pub struct SettingProfile {
     pub color_modes: ColorModes,
+    #[serde(default, skip_serializing_if = "ContentTypes::is_empty")]
     pub content_types: ContentTypes,
     pub document_formats: DocumentFormats,
     pub supported_resolutions: SupportedResolutions,
@@ -80,7 +86,7 @@ pub struct ColorModes {
     pub color_mode: Vec<ColorMode>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct ContentTypes {
     pub content_type: Vec<ContentType>,
@@ -115,13 +121,13 @@ pub struct DiscreteResolution {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct ColorSpaces {
-    pub color_space: String,
+    pub color_space: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct CcdChannels {
-    pub ccd_channel: String,
+    pub ccd_channel: Vec<CcdChannel>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -139,10 +145,10 @@ pub struct CompressionFactorSupport {
     pub step: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct SupportedMediaTypes {
-    pub media_type: String,
+    pub media_type: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -184,6 +190,23 @@ pub enum ContentType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CcdChannel {
+    /// Use the Red CCD
+    Red,
+    /// Use the Green CCD
+    Green,
+    /// Use the Blue CCD
+    Blue,
+    /// Weighted combination of the three color channels optimized for photos
+    NTSC,
+    /// A dedicated Gray CCD array in the hardware (optimized for documents)
+    GrayCcd,
+    /// An emulated Gray CCD mode where each CCD line are given even weight (1/3 R, 1/3 G, 1/3 B)
+    /// (optimized for documents).
+    GrayCcdEmulated,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScanIntent {
     /// Scanning optimized for text.
     Document,
@@ -202,7 +225,26 @@ pub enum ScanIntent {
 
 struct ColorModeVisitor;
 struct ContentTypeVisitor;
+struct CcdChannelVisitor;
 struct ScanIntentVisitor;
+
+impl Certifications {
+    fn is_empty(&self) -> bool {
+        self.certification.is_empty()
+    }
+}
+
+impl ContentTypes {
+    fn is_empty(&self) -> bool {
+        self.content_type.is_empty()
+    }
+}
+
+impl SupportedMediaTypes {
+    fn is_empty(&self) -> bool {
+        self.media_type.is_empty()
+    }
+}
 
 impl ColorModes {
     /// Gets the highest support quality RGB color mode. If no RGB color mode is supported, `None`
@@ -320,6 +362,59 @@ impl<'de> Visitor<'de> for ContentTypeVisitor {
     }
 }
 
+impl Serialize for CcdChannel {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(match self {
+            CcdChannel::Red => "Red",
+            CcdChannel::Green => "Green",
+            CcdChannel::Blue => "Blue",
+            CcdChannel::NTSC => "NTSC",
+            CcdChannel::GrayCcd => "GrayCcd",
+            CcdChannel::GrayCcdEmulated => "GrayCcdEmulated",
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for CcdChannel {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(CcdChannelVisitor)
+    }
+}
+
+impl<'de> Visitor<'de> for CcdChannelVisitor {
+    type Value = CcdChannel;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "string")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(match v {
+            "Red" => CcdChannel::Red,
+            "Green" => CcdChannel::Green,
+            "Blue" => CcdChannel::Blue,
+            "NTSC" => CcdChannel::NTSC,
+            "GrayCcd" => CcdChannel::GrayCcd,
+            "GrayCcdEmulated" => CcdChannel::GrayCcdEmulated,
+            _ => {
+                return Err(serde::de::Error::invalid_value(
+                    serde::de::Unexpected::Str(v),
+                    &"valid ColorMode value",
+                ))
+            }
+        })
+    }
+}
+
 impl Serialize for ScanIntent {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -366,5 +461,23 @@ impl<'de> Visitor<'de> for ScanIntentVisitor {
             "BusinessCard" => ScanIntent::BusinessCard,
             custom => ScanIntent::Custom(custom.to_owned()),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    pub fn test_capabilities_deser() {
+        for raw_xml in [
+            include_str!("../test-data/capabilities/brother_mfc_j497dw.xml"),
+            include_str!("../test-data/capabilities/canon_ts5300_series.xml"),
+        ]
+        .into_iter()
+        {
+            serde_xml_rs::from_str::<ScannerCapabilities>(raw_xml)
+                .expect("capabilities deserializing failure");
+        }
     }
 }
