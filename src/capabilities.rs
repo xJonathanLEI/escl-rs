@@ -17,6 +17,7 @@ pub struct ScannerCapabilities {
     #[serde(default, skip_serializing_if = "Certifications::is_empty")]
     pub certifications: Certifications,
     pub platen: Platen,
+    pub adf: Option<Adf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compression_factor_support: Option<CompressionFactorSupport>,
     #[serde(default, skip_serializing_if = "SupportedMediaTypes::is_empty")]
@@ -41,12 +42,18 @@ pub struct Certification {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Platen {
-    pub platen_input_caps: PlatenInputCaps,
+    pub platen_input_caps: InputCaps,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct PlatenInputCaps {
+pub struct Adf {
+    pub adf_simplex_input_caps: InputCaps,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct InputCaps {
     pub min_width: u32,
     pub max_width: u32,
     pub min_height: u32,
@@ -77,7 +84,7 @@ pub struct SettingProfile {
     pub document_formats: DocumentFormats,
     pub supported_resolutions: SupportedResolutions,
     pub color_spaces: ColorSpaces,
-    pub ccd_channels: CcdChannels,
+    pub ccd_channels: Option<CcdChannels>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -473,6 +480,7 @@ mod tests {
         for raw_xml in [
             include_str!("../test-data/capabilities/brother_mfc_j497dw.xml"),
             include_str!("../test-data/capabilities/canon_ts5300_series.xml"),
+            include_str!("../test-data/capabilities/canon_ts7450.xml"),
         ]
         .into_iter()
         {
