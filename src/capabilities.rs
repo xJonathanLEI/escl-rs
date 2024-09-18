@@ -17,6 +17,7 @@ pub struct ScannerCapabilities {
     #[serde(default, skip_serializing_if = "Certifications::is_empty")]
     pub certifications: Certifications,
     pub platen: Platen,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub adf: Option<Adf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compression_factor_support: Option<CompressionFactorSupport>,
@@ -84,6 +85,7 @@ pub struct SettingProfile {
     pub document_formats: DocumentFormats,
     pub supported_resolutions: SupportedResolutions,
     pub color_spaces: ColorSpaces,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ccd_channels: Option<CcdChannels>,
 }
 
